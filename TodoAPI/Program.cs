@@ -47,4 +47,95 @@ app.MapGet("/todos/{id}", async (int id, TodoContext db) =>
     var todo = await db.Todos.FindAsync(id);
     return todo != null ? Results.Ok(todo) : Results.NotFound();  // Return 200 if found, or 404 if not
 });
+
+// Update Todo
+app.MapPut("/todos/{id}", async (int id, Todo updatedTodo, TodoContext db) =>
+{
+    // Find the Todo to update by its ID
+    var todo = await db.Todos.FindAsync(id);
+    if (todo == null)
+        return Results.NotFound();  // Return 404 if the Todo doesn't exist
+
+    // Validate the updated Todo object
+    var validationContext = new ValidationContext(updatedTodo);
+    var validationResults = new List<ValidationResult>();
+    if (!Validator.TryValidateObject(updatedTodo, validationContext, validationResults, true))
+    {
+        return Results.BadRequest(validationResults);  // Return 400 with validation errors
+    }
+
+    // Update the Todo's properties
+    todo.Title = updatedTodo.Title;
+    todo.Description = updatedTodo.Description;
+    todo.ExpiryDate = updatedTodo.ExpiryDate;
+    todo.PercentComplete = updatedTodo.PercentComplete;
+
+    // Save the changes to the database
+    await db.SaveChangesAsync();
+    return Results.Ok(todo);  // Return the updated Todo as a 200 response
+});
+
+
+// Get Incoming Todos (Today, Next Day, Current Week)
+app.MapGet("/todos/incoming", async (TodoContext db) =>
+{
+    var now = DateTime.UtcNow;
+    var weekLater = now.AddDays(7);
+
+    // Fetch todos that are due in the next 7 days
+    var incomingTodos = await db.Todos
+        .Where(t => t.ExpiryDate >= now && t.ExpiryDate <= weekLater)
+        .ToListAsync();
+
+    return Results.Ok(incomingTodos);  // Return the list of incoming todos
+});
+
+// Delete Todo
+app.MapDelete("/todos/{id}", async (int id, TodoContext db) =>
+{
+    // Find the Todo by ID
+    var todo = await db.Todos.FindAsync(id);
+    if (todo == null)
+        return Results.NotFound();  // Return 404 if the Todo doesn't exist
+
+    // Remove the Todo from the database
+    db.Todos.Remove(todo);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();  // Return 204 No Content as the Todo is deleted
+});
+
+// Set Todo Percent Complete
+app.MapPatch("/todos/{id}/percent", async (int id, int percentComplete, TodoContext db) =>
+{
+    // Find the Todo by ID
+    var todo = await db.Todos.FindAsync(id);
+    if (todo == null)
+        return Results.NotFound();  // Return 404 if the Todo doesn't exist
+
+    // Validate the percent complete value (must be between 0 and 100)
+    if (percentComplete is < 0 or > 100)
+        return Results.BadRequest("Percent complete must be between 0 and 100.");
+
+    // Update the Todo's percent complete value
+    todo.PercentComplete = percentComplete;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(todo);  // Return the updated Todo as a 200 response
+});
+
+// Mark Todo as Done 
+app.MapPatch("/todos/{id}/done", async (int id, TodoContext db) =>
+{
+    // Find the Todo by ID
+    var todo = await db.Todos.FindAsync(id);
+    if (todo == null)
+        return Results.NotFound();  // Return 404 if the Todo doesn't exist
+
+    // Mark the Todo as 100% complete
+    todo.PercentComplete = 100;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(todo);  // Return the updated Todo as a 200 response
+});
 app.Run();
