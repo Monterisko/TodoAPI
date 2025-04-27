@@ -7,11 +7,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<TodoContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.WebHost.UseUrls("http://0.0.0.0:8080");
 
 var app = builder.Build();
 
-app.Urls.Add("http://0.0.0.0:8080");
 
 
+// Get All Todos
+app.MapGet("/todos", async (TodoContext db) =>
+{
+    // Fetch all Todo items from the database
+    var todos = await db.Todos.ToListAsync();
+    return Results.Ok(todos);  // Return the list of todos as an HTTP 200 response
+});
 
 app.Run();
