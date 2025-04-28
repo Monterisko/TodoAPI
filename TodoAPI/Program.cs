@@ -77,17 +77,34 @@ app.MapPut("/todos/{id}", async (int id, Todo updatedTodo, TodoContext db) =>
 
 
 // Get Incoming Todos (Today, Next Day, Current Week)
-app.MapGet("/todos/incoming", async (TodoContext db) =>
+app.MapGet("/todos/incoming", async (string filter, TodoContext db) =>
 {
-    var now = DateTime.UtcNow;
-    var weekLater = now.AddDays(7);
+    var today = DateTime.Today;
+    var tomorrow = today.AddDays(1);
+    var endOfWeek = today.AddDays(7 - (int)today.DayOfWeek);
 
-    // Fetch todos that are due in the next 7 days
-    var incomingTodos = await db.Todos
-        .Where(t => t.ExpiryDate >= now && t.ExpiryDate <= weekLater)
-        .ToListAsync();
-
-    return Results.Ok(incomingTodos);  // Return the list of incoming todos
+    // initial query for all TODOs
+    IQueryable<Todo> query = db.Todos;
+    
+    // Check the filter parameter value
+    switch (filter.ToLower())
+    {
+        case "today":
+            query = query.Where(t => t.ExpiryDate.Date == today);
+            break;
+        case "tomorrow":
+            query = query.Where(t => t.ExpiryDate.Date == tomorrow);
+            break;
+        case "week":
+            query = query.Where(t => t.ExpiryDate.Date >= today && t.ExpiryDate.Date <= endOfWeek);
+            break;
+        default:
+            return Results.BadRequest(new { error = "Filter must be one of: today, tomorrow, week" });
+    }
+    
+    // Execute the query and return the list of matching TODOs
+    var todos = await query.ToListAsync();
+    return Results.Ok(todos); 
 });
 
 // Delete Todo
